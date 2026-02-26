@@ -20,7 +20,17 @@ const app = express();
 
 // ── Security ──
 app.use(helmet());
-app.use(cors({ origin: config.cors.origin, credentials: true }));
+const allowedOrigins = config.cors.origin.split(',').map((o) => o.trim());
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, origin || true);
+    } else {
+      callback(null, false);
+    }
+  },
+  credentials: true,
+}));
 
 // ── Rate Limiting ──
 const generalLimiter = rateLimit({
