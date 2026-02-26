@@ -33,8 +33,8 @@ export class AuthService {
     };
 
     const accessToken = jwt.sign(payload, config.jwt.secret, {
-      expiresIn: config.jwt.expiresIn,
-    });
+      expiresIn: 900, // 15 minutes
+    } as jwt.SignOptions);
 
     const refreshToken = uuid();
     const expiresAt = new Date();
@@ -136,8 +136,8 @@ export class AuthService {
     };
 
     const accessToken = jwt.sign(payload, config.jwt.secret, {
-      expiresIn: config.jwt.expiresIn,
-    });
+      expiresIn: 900, // 15 minutes
+    } as jwt.SignOptions);
 
     const newRefreshToken = uuid();
     const expiresAt = new Date();

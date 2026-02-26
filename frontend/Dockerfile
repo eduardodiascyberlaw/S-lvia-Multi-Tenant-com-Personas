@@ -18,7 +18,7 @@ FROM nginx:alpine
 # Copy built files
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Nginx config for SPA routing
+# Nginx config for SPA routing (API calls go directly to silvia-api.lexcod.pt from browser)
 RUN echo 'server { \
     listen 80; \
     server_name _; \
@@ -27,14 +27,6 @@ RUN echo 'server { \
     \
     location / { \
         try_files $uri $uri/ /index.html; \
-    } \
-    \
-    location /api { \
-        proxy_pass http://backend:3002; \
-        proxy_set_header Host $host; \
-        proxy_set_header X-Real-IP $remote_addr; \
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
-        proxy_set_header X-Forwarded-Proto $scheme; \
     } \
     \
     location ~* \.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$ { \
