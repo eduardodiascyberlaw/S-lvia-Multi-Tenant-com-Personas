@@ -86,4 +86,45 @@ export class PersonaController {
       next(err);
     }
   }
+
+  static async listTools(req: Request, res: Response, next: NextFunction) {
+    try {
+      const tools = await PersonaService.listTools(req.params.id, req.user!.orgId);
+      res.json({ success: true, data: tools });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async addTool(req: Request, res: Response, next: NextFunction) {
+    try {
+      const tool = await PersonaService.addTool(req.params.id, req.user!.orgId, req.body);
+      res.status(201).json({ success: true, data: tool });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async updateTool(req: Request, res: Response, next: NextFunction) {
+    try {
+      const tool = await PersonaService.updateTool(
+        req.params.id,
+        req.params.toolId,
+        req.user!.orgId,
+        req.body
+      );
+      res.json({ success: true, data: tool });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async removeTool(req: Request, res: Response, next: NextFunction) {
+    try {
+      await PersonaService.removeTool(req.params.id, req.params.toolId, req.user!.orgId);
+      res.json({ success: true, message: 'Ferramenta removida da persona' });
+    } catch (err) {
+      next(err);
+    }
+  }
 }

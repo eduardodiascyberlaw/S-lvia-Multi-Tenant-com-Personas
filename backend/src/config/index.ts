@@ -64,6 +64,14 @@ export const config = {
     },
   },
 
+  stripe: {
+    secretKey: process.env.STRIPE_SECRET_KEY || '',
+  },
+
+  lexCorpus: {
+    url: process.env.LEX_CORPUS_URL || '',
+  },
+
   superAdmin: {
     email: process.env.SUPER_ADMIN_EMAIL || 'admin@lexcod.pt',
     password: process.env.SUPER_ADMIN_PASSWORD || '',

@@ -28,8 +28,9 @@ export function LoginPage() {
       } else {
         await login(form.email, form.password);
       }
-    } catch (err: any) {
-      setError(err.response?.data?.error || err.message || 'Erro inesperado');
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: string } }; message?: string };
+      setError(axiosErr.response?.data?.error || axiosErr.message || 'Erro inesperado');
     } finally {
       setIsLoading(false);
     }

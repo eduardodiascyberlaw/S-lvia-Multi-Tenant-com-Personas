@@ -1,6 +1,6 @@
+import { Prisma, ChannelType } from '@prisma/client';
 import { prisma } from '../utils/prisma';
 import { AppError } from '../middleware/errorHandler';
-import { ChannelType } from '@prisma/client';
 
 export class ChannelService {
   // ── List Channels ──
@@ -26,7 +26,7 @@ export class ChannelService {
 
   // ── Create Channel ──
 
-  static async create(orgId: string, data: { type: ChannelType; name: string; config?: any }) {
+  static async create(orgId: string, data: { type: ChannelType; name: string; config?: Prisma.InputJsonValue }) {
     return prisma.channel.create({
       data: {
         orgId,
@@ -42,7 +42,7 @@ export class ChannelService {
   static async update(
     id: string,
     orgId: string,
-    data: { name?: string; config?: any; isActive?: boolean }
+    data: { name?: string; config?: Prisma.InputJsonValue; isActive?: boolean }
   ) {
     const channel = await prisma.channel.findFirst({ where: { id, orgId } });
     if (!channel) throw new AppError('Canal nao encontrado', 404);

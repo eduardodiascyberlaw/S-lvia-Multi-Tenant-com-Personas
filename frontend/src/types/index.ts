@@ -27,6 +27,15 @@ export interface AuthUser {
   orgName: string;
 }
 
+export interface OrgUser {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
 export interface LoginResult {
   accessToken: string;
   refreshToken: string;
@@ -41,7 +50,7 @@ export interface Organization {
   slug: string;
   plan: string;
   status: string;
-  settings: any;
+  settings: Record<string, unknown>;
   createdAt: string;
   _count?: {
     users: number;
@@ -105,7 +114,7 @@ export interface KBDocument {
   id: string;
   title: string;
   source?: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
   createdAt: string;
   _count?: {
     chunks: number;
@@ -119,7 +128,7 @@ export interface Channel {
   type: 'WHATSAPP' | 'WEBCHAT' | 'EMAIL';
   name: string;
   token: string;
-  config?: any;
+  config?: Record<string, string>;
   isActive: boolean;
   createdAt: string;
   personas?: {
@@ -151,7 +160,28 @@ export interface Message {
   id: string;
   role: 'USER' | 'ASSISTANT' | 'SYSTEM';
   content: string;
-  sources?: any[];
-  metadata?: any;
+  sources?: Record<string, unknown>[];
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+}
+
+// ── Persona Tools ──
+
+export type ToolType =
+  | 'STRIPE_CHECK_PAYMENT'
+  | 'STRIPE_SEND_PAYMENT_LINK'
+  | 'TRIBUNAIS_SEARCH'
+  | 'LEGISLACAO_SEARCH';
+
+export interface PersonaToolConfig {
+  paymentLinks?: Record<string, string>;
+}
+
+export interface PersonaTool {
+  id: string;
+  personaId: string;
+  toolType: ToolType;
+  config?: PersonaToolConfig;
+  isEnabled: boolean;
   createdAt: string;
 }

@@ -107,8 +107,33 @@ model Persona {
   channels      ChannelPersona[]
   kbCollections PersonaKB[]
   conversations Conversation[]
+  tools         PersonaTool[]
 
   @@map("personas")
+}
+
+// ══════════════════════════════════════════════════════════════
+// Persona Tools (Function Calling)
+// ══════════════════════════════════════════════════════════════
+
+model PersonaTool {
+  id        String   @id @default(uuid())
+  personaId String   @map("persona_id")
+  persona   Persona  @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  toolType  ToolType @map("tool_type")
+  config    Json?
+  isEnabled Boolean  @default(true) @map("is_enabled")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([personaId, toolType])
+  @@map("persona_tools")
+}
+
+enum ToolType {
+  STRIPE_CHECK_PAYMENT
+  STRIPE_SEND_PAYMENT_LINK
+  TRIBUNAIS_SEARCH
+  LEGISLACAO_SEARCH
 }
 
 // ══════════════════════════════════════════════════════════════

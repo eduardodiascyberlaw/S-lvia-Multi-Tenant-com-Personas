@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../utils/prisma';
 import { AppError } from '../middleware/errorHandler';
 import { RAGService } from './rag.service';
@@ -68,7 +69,7 @@ export class KnowledgeService {
       title: string;
       content: string;
       source?: string;
-      metadata?: any;
+      metadata?: Prisma.InputJsonValue;
     }
   ) {
     // Verify collection ownership

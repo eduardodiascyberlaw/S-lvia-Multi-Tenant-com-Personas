@@ -4,14 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { silviaService } from '@/services/silvia.service';
-import { Organization } from '@/types';
+import { Organization, OrgUser } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import { Save, Loader2, Users, Plus } from 'lucide-react';
 
 export function SettingsPage() {
   const { user } = useAuth();
   const [org, setOrg] = useState<Organization | null>(null);
-  const [orgUsers, setOrgUsers] = useState<any[]>([]);
+  const [orgUsers, setOrgUsers] = useState<OrgUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [orgName, setOrgName] = useState('');

@@ -1,3 +1,4 @@
+import { Prisma, ConvStatus } from '@prisma/client';
 import { prisma } from '../utils/prisma';
 import { AppError } from '../middleware/errorHandler';
 import { RAGService } from './rag.service';
@@ -19,10 +20,10 @@ export class ConversationService {
     const limit = params.limit || 20;
     const skip = (page - 1) * limit;
 
-    const where: any = { orgId };
+    const where: Prisma.ConversationWhereInput = { orgId };
     if (params.personaId) where.personaId = params.personaId;
     if (params.channelId) where.channelId = params.channelId;
-    if (params.status) where.status = params.status;
+    if (params.status) where.status = params.status as ConvStatus;
 
     const [items, total] = await Promise.all([
       prisma.conversation.findMany({
@@ -83,7 +84,7 @@ export class ConversationService {
     sessionId?: string;
   }) {
     // Try to find active conversation
-    const where: any = {
+    const where: Prisma.ConversationWhereInput = {
       orgId: params.orgId,
       personaId: params.personaId,
       status: 'ACTIVE',
@@ -171,7 +172,7 @@ export class ConversationService {
         conversationId,
         role: 'ASSISTANT',
         content: result.answer,
-        sources: result.sources as any,
+        sources: result.sources as unknown as Prisma.InputJsonValue,
       },
     });
 

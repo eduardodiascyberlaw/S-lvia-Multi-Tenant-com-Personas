@@ -95,8 +95,10 @@ async function start() {
 
     app.listen(config.port, () => {
       console.log(`[Server] A escutar na porta ${config.port}`);
-      console.log(`[Server] Voice: ${config.voice.enabled ? 'ATIVO' : 'INATIVO'}`);
-      console.log(`[Server] OpenAI: ${config.openai.apiKey ? 'CONFIGURADO' : 'NAO CONFIGURADO'}`);
+      console.log(`[Server] OpenAI:     ${config.openai.apiKey ? 'OK' : 'NAO CONFIGURADO'}`);
+      console.log(`[Server] Stripe:     ${config.stripe.secretKey ? 'OK' : 'NAO CONFIGURADO'}`);
+      console.log(`[Server] Lex Corpus: ${config.lexCorpus.url ? config.lexCorpus.url : 'NAO CONFIGURADO'}`);
+      console.log(`[Server] Voice:      ${config.voice.enabled ? 'ATIVO' : 'INATIVO'}`);
     });
   } catch (err) {
     console.error('[Server] Erro ao iniciar:', err);

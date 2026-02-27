@@ -5,12 +5,17 @@ import {
   LoginResult,
   Organization,
   OrgStats,
+  OrgUser,
+  AuthUser,
   Persona,
   KBCollection,
   KBDocument,
   Channel,
   Conversation,
   Message,
+  PersonaTool,
+  PersonaToolConfig,
+  ToolType,
 } from '../types';
 
 export const silviaService = {
@@ -31,7 +36,7 @@ export const silviaService = {
     return res.data;
   },
 
-  async me(): Promise<ApiResponse<any>> {
+  async me(): Promise<ApiResponse<AuthUser>> {
     const res = await api.get('/auth/me');
     return res.data;
   },
@@ -43,12 +48,12 @@ export const silviaService = {
     return res.data;
   },
 
-  async updateOrg(data: { name?: string; settings?: any }): Promise<ApiResponse<Organization>> {
+  async updateOrg(data: { name?: string; settings?: Record<string, unknown> }): Promise<ApiResponse<Organization>> {
     const res = await api.put('/org', data);
     return res.data;
   },
 
-  async getOrgUsers(): Promise<ApiResponse<any[]>> {
+  async getOrgUsers(): Promise<ApiResponse<OrgUser[]>> {
     const res = await api.get('/org/users');
     return res.data;
   },
@@ -58,7 +63,7 @@ export const silviaService = {
     name: string;
     role: string;
     password: string;
-  }): Promise<ApiResponse<any>> {
+  }): Promise<ApiResponse<OrgUser>> {
     const res = await api.post('/org/users/invite', data);
     return res.data;
   },
@@ -95,18 +100,45 @@ export const silviaService = {
     return res.data;
   },
 
-  async testPersona(id: string, question: string): Promise<ApiResponse<any>> {
+  async testPersona(id: string, question: string): Promise<ApiResponse<{ answer: string; sources?: Record<string, unknown>[] }>> {
     const res = await api.post(`/personas/${id}/test`, { question });
     return res.data;
   },
 
-  async assignCollection(personaId: string, collectionId: string): Promise<ApiResponse<any>> {
+  async assignCollection(personaId: string, collectionId: string): Promise<ApiResponse<{ id: string }>> {
     const res = await api.post(`/personas/${personaId}/collections`, { collectionId });
     return res.data;
   },
 
   async removeCollection(personaId: string, collectionId: string): Promise<ApiResponse<void>> {
     const res = await api.delete(`/personas/${personaId}/collections/${collectionId}`);
+    return res.data;
+  },
+
+  async listTools(personaId: string): Promise<ApiResponse<PersonaTool[]>> {
+    const res = await api.get(`/personas/${personaId}/tools`);
+    return res.data;
+  },
+
+  async addTool(
+    personaId: string,
+    data: { toolType: ToolType; config?: PersonaToolConfig; isEnabled?: boolean }
+  ): Promise<ApiResponse<PersonaTool>> {
+    const res = await api.post(`/personas/${personaId}/tools`, data);
+    return res.data;
+  },
+
+  async updateTool(
+    personaId: string,
+    toolId: string,
+    data: { config?: PersonaToolConfig; isEnabled?: boolean }
+  ): Promise<ApiResponse<PersonaTool>> {
+    const res = await api.put(`/personas/${personaId}/tools/${toolId}`, data);
+    return res.data;
+  },
+
+  async removeTool(personaId: string, toolId: string): Promise<ApiResponse<void>> {
+    const res = await api.delete(`/personas/${personaId}/tools/${toolId}`);
     return res.data;
   },
 
@@ -152,7 +184,7 @@ export const silviaService = {
     return res.data;
   },
 
-  async createChannel(data: { type: string; name: string; config?: any }): Promise<ApiResponse<Channel>> {
+  async createChannel(data: { type: string; name: string; config?: Record<string, string> }): Promise<ApiResponse<Channel>> {
     const res = await api.post('/channels', data);
     return res.data;
   },
@@ -171,7 +203,7 @@ export const silviaService = {
     channelId: string,
     personaId: string,
     isDefault = false
-  ): Promise<ApiResponse<any>> {
+  ): Promise<ApiResponse<{ id: string }>> {
     const res = await api.post(`/channels/${channelId}/personas`, { personaId, isDefault });
     return res.data;
   },

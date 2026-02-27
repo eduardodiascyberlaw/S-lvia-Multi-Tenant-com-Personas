@@ -17,4 +17,9 @@ router.post('/:id/test', validate(testPersonaSchema), PersonaController.test);
 router.post('/:id/collections', authorize('OWNER', 'ADMIN'), PersonaController.assignCollection);
 router.delete('/:id/collections/:collectionId', authorize('OWNER', 'ADMIN'), PersonaController.removeCollection);
 
+router.get('/:id/tools', PersonaController.listTools);
+router.post('/:id/tools', authorize('OWNER', 'ADMIN'), PersonaController.addTool);
+router.put('/:id/tools/:toolId', authorize('OWNER', 'ADMIN'), PersonaController.updateTool);
+router.delete('/:id/tools/:toolId', authorize('OWNER', 'ADMIN'), PersonaController.removeTool);
+
 export default router;

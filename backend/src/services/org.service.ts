@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
+import { Prisma, UserRole } from '@prisma/client';
 import { prisma } from '../utils/prisma';
 import { AppError } from '../middleware/errorHandler';
-import { UserRole } from '@prisma/client';
 
 export class OrgService {
   // ── Get Organization ──
@@ -27,7 +27,7 @@ export class OrgService {
 
   // ── Update Organization ──
 
-  static async updateOrg(orgId: string, data: { name?: string; settings?: any }) {
+  static async updateOrg(orgId: string, data: { name?: string; settings?: Prisma.InputJsonValue }) {
     return prisma.organization.update({
       where: { id: orgId },
       data,

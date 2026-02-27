@@ -1,8 +1,18 @@
 import OpenAI from 'openai';
+import { Prisma } from '@prisma/client';
 import { config } from '../config';
 import { prisma } from '../utils/prisma';
 import { AppError } from '../middleware/errorHandler';
 import { RAGResult, RAGSource } from '../types';
+import { ToolService, ToolConfig } from './tool.service';
+
+interface RawChunkResult {
+  id: string;
+  content: string;
+  document_id: string;
+  title: string;
+  similarity: string;
+}
 
 const openai = new OpenAI({ apiKey: config.openai.apiKey });
 
@@ -63,7 +73,7 @@ export class RAGService {
     title: string,
     content: string,
     source?: string,
-    metadata?: any
+    metadata?: Prisma.InputJsonValue
   ) {
     // Create document
     const doc = await prisma.kBDocument.create({
@@ -78,7 +88,9 @@ export class RAGService {
 
     // Chunk and embed
     const chunks = this.chunkText(content);
-    console.log(`[RAG] Documento "${title}": ${chunks.length} chunks`);
+    if (config.nodeEnv === "development") {
+      console.log(`[RAG] Documento "${title}": ${chunks.length} chunks`);
+    }
 
     for (let i = 0; i < chunks.length; i++) {
       const embedding = await this.getEmbedding(chunks[i]);
@@ -110,7 +122,7 @@ export class RAGService {
     const embedding = await this.getEmbedding(query);
     const embeddingStr = `[${embedding.join(',')}]`;
 
-    const results: any[] = await prisma.$queryRawUnsafe(
+    const results = await prisma.$queryRawUnsafe<RawChunkResult[]>(
       `SELECT c.id, c.content, c.document_id,
               d.title,
               1 - (c.embedding <=> $1::vector) as similarity
@@ -142,13 +154,12 @@ export class RAGService {
     orgId: string,
     conversationHistory?: { role: string; content: string }[]
   ): Promise<RAGResult> {
-    // Get persona with KB collections
+    // Get persona with KB collections and tools
     const persona = await prisma.persona.findFirst({
       where: { id: personaId, orgId },
       include: {
-        kbCollections: {
-          include: { collection: true },
-        },
+        kbCollections: { include: { collection: true } },
+        tools: { where: { isEnabled: true } },
       },
     });
 
@@ -157,17 +168,17 @@ export class RAGService {
     // Get collection IDs for this persona
     const collectionIds = persona.kbCollections.map((pk) => pk.collectionId);
 
-    // Search for relevant documents
+    // Search for relevant documents in internal KB
     const sources = collectionIds.length > 0
       ? await this.search(question, collectionIds)
       : [];
 
-    // Build context from sources
+    // Build context from internal KB sources
     const contextText = sources.length > 0
       ? sources
           .map((s, i) => `[Fonte ${i + 1}: ${s.title}]\n${s.content}`)
           .join('\n\n---\n\n')
-      : 'Nenhum documento relevante encontrado na base de conhecimento.';
+      : 'Nenhum documento relevante encontrado na base de conhecimento interna.';
 
     // Build messages for GPT
     const messages: OpenAI.ChatCompletionMessageParam[] = [
@@ -179,7 +190,7 @@ export class RAGService {
 
     // Add conversation history if provided
     if (conversationHistory && conversationHistory.length > 0) {
-      const recentHistory = conversationHistory.slice(-6); // Last 6 messages
+      const recentHistory = conversationHistory.slice(-6);
       for (const msg of recentHistory) {
         messages.push({
           role: msg.role as 'user' | 'assistant',
@@ -190,19 +201,70 @@ export class RAGService {
 
     messages.push({ role: 'user', content: question });
 
-    // Generate response
-    const completion = await openai.chat.completions.create({
-      model: persona.model || config.openai.generationModel,
+    // Build tool definitions for this persona
+    const toolDefs = persona.tools.length > 0
+      ? ToolService.getDefinitions(persona.tools.map((t) => t.toolType))
+      : undefined;
+
+    const model = persona.model || config.openai.generationModel;
+    const temperature = persona.temperature;
+
+    // First completion call
+    let completion = await openai.chat.completions.create({
+      model,
       messages,
-      temperature: persona.temperature,
+      temperature,
       max_tokens: 2000,
+      ...(toolDefs ? { tools: toolDefs, tool_choice: 'auto' } : {}),
     });
+
+    // Agentic tool-calling loop (max 5 iterations to prevent infinite loops)
+    let iterations = 0;
+    while (completion.choices[0]?.finish_reason === 'tool_calls' && iterations < 5) {
+      iterations++;
+      const toolCalls = completion.choices[0].message.tool_calls!;
+
+      // Add assistant message with tool_calls
+      messages.push(completion.choices[0].message);
+
+      // Execute each tool call and add results
+      for (const tc of toolCalls) {
+        const personaTool = persona.tools.find(
+          (pt) => ToolService.toolTypeName(pt.toolType) === tc.function.name
+        );
+
+        let result: string;
+        try {
+          result = await ToolService.execute(
+            tc.function.name,
+            JSON.parse(tc.function.arguments),
+            (personaTool?.config ?? null) as ToolConfig | null
+          );
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : String(err);
+          result = `Erro ao executar ferramenta ${tc.function.name}: ${message}`;
+        }
+
+        messages.push({
+          role: 'tool',
+          tool_call_id: tc.id,
+          content: result,
+        });
+      }
+
+      // Re-call with tool results
+      completion = await openai.chat.completions.create({
+        model,
+        messages,
+        temperature,
+        max_tokens: 2000,
+        tools: toolDefs,
+        tool_choice: 'auto',
+      });
+    }
 
     const answer = completion.choices[0]?.message?.content || 'Sem resposta.';
 
-    return {
-      answer,
-      sources,
-    };
+    return { answer, sources };
   }
 }

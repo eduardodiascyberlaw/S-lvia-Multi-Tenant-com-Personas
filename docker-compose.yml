@@ -43,7 +43,9 @@ services:
       VOICE_ENABLED: ${VOICE_ENABLED:-false}
       RESEMBLE_API_KEY: ${RESEMBLE_API_KEY}
       RESEMBLE_VOICE_UUID: ${RESEMBLE_VOICE_UUID}
-      CORS_ORIGIN: http://localhost:5174
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      LEX_CORPUS_URL: ${LEX_CORPUS_URL}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5174}
       SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:-admin@lexcod.pt}
       SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:-LexCod2026}
       SUPER_ADMIN_NAME: ${SUPER_ADMIN_NAME:-Admin}
@@ -60,7 +62,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: http://localhost:3002
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3002}
     ports:
       - '5174:80'
     depends_on:

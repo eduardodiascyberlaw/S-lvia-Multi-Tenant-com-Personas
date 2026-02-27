@@ -6,8 +6,42 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { silviaService } from '@/services/silvia.service';
-import { Persona, KBCollection } from '@/types';
-import { ArrowLeft, Save, Loader2, Send, BookOpen, Plus, X } from 'lucide-react';
+import { KBCollection, PersonaTool, ToolType } from '@/types';
+import { ArrowLeft, Save, Loader2, Send, BookOpen, Plus, X, Wrench, Trash2 } from 'lucide-react';
+
+// ── Tool metadata ─────────────────────────────────────────────────────────────
+
+const TOOL_META: Record<ToolType, { label: string; description: string; hasConfig: boolean }> = {
+  STRIPE_CHECK_PAYMENT: {
+    label: 'Stripe — Verificar Pagamento',
+    description: 'Verifica o estado da subscrição de um aluno pelo email no Stripe.',
+    hasConfig: false,
+  },
+  STRIPE_SEND_PAYMENT_LINK: {
+    label: 'Stripe — Enviar Link de Pagamento',
+    description: 'Devolve o link de pagamento de um curso ou produto.',
+    hasConfig: true,
+  },
+  TRIBUNAIS_SEARCH: {
+    label: 'Pesquisa de Jurisprudência',
+    description: 'Pesquisa acórdãos dos tribunais administrativos (STA, TCAN, TCAS, TC) via Lex Corpus.',
+    hasConfig: false,
+  },
+  LEGISLACAO_SEARCH: {
+    label: 'Pesquisa de Legislação',
+    description: 'Pesquisa legislação portuguesa (CPTA, CPA, CPPT…) via Lex Corpus.',
+    hasConfig: false,
+  },
+};
+
+const ALL_TOOL_TYPES: ToolType[] = [
+  'STRIPE_CHECK_PAYMENT',
+  'STRIPE_SEND_PAYMENT_LINK',
+  'TRIBUNAIS_SEARCH',
+  'LEGISLACAO_SEARCH',
+];
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export function PersonaFormPage() {
   const { id } = useParams();
@@ -21,6 +55,11 @@ export function PersonaFormPage() {
   const [testResult, setTestResult] = useState<string | null>(null);
   const [collections, setCollections] = useState<KBCollection[]>([]);
   const [personaCollections, setPersonaCollections] = useState<string[]>([]);
+
+  // Tools state
+  const [tools, setTools] = useState<PersonaTool[]>([]);
+  const [paymentLinks, setPaymentLinks] = useState<{ product: string; url: string }[]>([]);
+  const [savingLinks, setSavingLinks] = useState(false);
 
   const [form, setForm] = useState({
     name: '',
@@ -38,9 +77,12 @@ export function PersonaFormPage() {
     });
 
     if (!isNew && id) {
-      silviaService.getPersona(id).then((res) => {
-        if (res.data) {
-          const p = res.data;
+      Promise.all([
+        silviaService.getPersona(id),
+        silviaService.listTools(id),
+      ]).then(([personaRes, toolsRes]) => {
+        if (personaRes.data) {
+          const p = personaRes.data;
           setForm({
             name: p.name,
             description: p.description || '',
@@ -51,6 +93,15 @@ export function PersonaFormPage() {
             voiceUuid: p.voiceUuid || '',
           });
           setPersonaCollections(p.kbCollections?.map((c) => c.collection.id) || []);
+        }
+        if (toolsRes.data) {
+          setTools(toolsRes.data);
+          const linkTool = toolsRes.data.find((t) => t.toolType === 'STRIPE_SEND_PAYMENT_LINK');
+          if (linkTool?.config?.paymentLinks) {
+            setPaymentLinks(
+              Object.entries(linkTool.config.paymentLinks).map(([product, url]) => ({ product, url }))
+            );
+          }
         }
       }).finally(() => setLoading(false));
     }
@@ -102,7 +153,44 @@ export function PersonaFormPage() {
     }
   };
 
+  const handleToggleTool = async (toolType: ToolType) => {
+    if (!id || isNew) return;
+    const existing = tools.find((t) => t.toolType === toolType);
+    try {
+      if (existing) {
+        await silviaService.removeTool(id, existing.id);
+        setTools((prev) => prev.filter((t) => t.toolType !== toolType));
+        if (toolType === 'STRIPE_SEND_PAYMENT_LINK') setPaymentLinks([]);
+      } else {
+        const res = await silviaService.addTool(id, { toolType, isEnabled: true });
+        if (res.data) setTools((prev) => [...prev, res.data!]);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSavePaymentLinks = async () => {
+    if (!id) return;
+    const linkTool = tools.find((t) => t.toolType === 'STRIPE_SEND_PAYMENT_LINK');
+    if (!linkTool) return;
+    setSavingLinks(true);
+    try {
+      const paymentLinksMap = paymentLinks.reduce<Record<string, string>>((acc, { product, url }) => {
+        if (product.trim() && url.trim()) acc[product.trim()] = url.trim();
+        return acc;
+      }, {});
+      await silviaService.updateTool(id, linkTool.id, { config: { paymentLinks: paymentLinksMap } });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSavingLinks(false);
+    }
+  };
+
   if (loading) return <div className="text-center py-12 text-muted-foreground">A carregar...</div>;
+
+  const activeToolTypes = new Set(tools.map((t) => t.toolType));
 
   return (
     <div className="max-w-4xl">
@@ -223,6 +311,114 @@ export function PersonaFormPage() {
                   })}
                 </div>
               )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Ferramentas de IA */}
+        {!isNew && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Wrench className="h-5 w-5" /> Ferramentas de IA
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {ALL_TOOL_TYPES.map((toolType) => {
+                const meta = TOOL_META[toolType];
+                const isActive = activeToolTypes.has(toolType);
+                return (
+                  <div key={toolType} className="space-y-3">
+                    <div
+                      className={`flex items-start justify-between p-4 rounded-lg border transition-colors ${
+                        isActive ? 'border-primary/50 bg-primary/5' : 'border-border bg-muted/30'
+                      }`}
+                    >
+                      <div className="flex-1 min-w-0 mr-4">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium">{meta.label}</span>
+                          {isActive && (
+                            <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary border-primary/20">
+                              Activa
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">{meta.description}</p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant={isActive ? 'destructive' : 'outline'}
+                        onClick={() => handleToggleTool(toolType)}
+                        className="shrink-0"
+                      >
+                        {isActive ? <X className="h-3.5 w-3.5 mr-1" /> : <Plus className="h-3.5 w-3.5 mr-1" />}
+                        {isActive ? 'Remover' : 'Adicionar'}
+                      </Button>
+                    </div>
+
+                    {/* Payment links config */}
+                    {isActive && meta.hasConfig && (
+                      <div className="ml-4 pl-4 border-l-2 border-primary/20 space-y-3">
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                          Links de Pagamento
+                        </p>
+                        {paymentLinks.map((link, idx) => (
+                          <div key={idx} className="flex gap-2 items-center">
+                            <Input
+                              value={link.product}
+                              onChange={(e) => {
+                                const updated = [...paymentLinks];
+                                updated[idx] = { ...updated[idx], product: e.target.value };
+                                setPaymentLinks(updated);
+                              }}
+                              placeholder="Nome do produto (ex: curso_basico)"
+                              className="text-sm"
+                            />
+                            <Input
+                              value={link.url}
+                              onChange={(e) => {
+                                const updated = [...paymentLinks];
+                                updated[idx] = { ...updated[idx], url: e.target.value };
+                                setPaymentLinks(updated);
+                              }}
+                              placeholder="URL do link de pagamento"
+                              className="text-sm"
+                            />
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => setPaymentLinks((prev) => prev.filter((_, i) => i !== idx))}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        ))}
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setPaymentLinks((prev) => [...prev, { product: '', url: '' }])}
+                          >
+                            <Plus className="h-3.5 w-3.5 mr-1" /> Adicionar Link
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={handleSavePaymentLinks}
+                            disabled={savingLinks}
+                          >
+                            {savingLinks ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                            ) : (
+                              <Save className="h-3.5 w-3.5 mr-1" />
+                            )}
+                            Guardar Links
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </CardContent>
           </Card>
         )}

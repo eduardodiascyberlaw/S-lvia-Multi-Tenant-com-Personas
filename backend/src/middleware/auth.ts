@@ -21,8 +21,8 @@ export function authenticate(req: Request, res: Response, next: NextFunction) {
     const decoded = jwt.verify(token, config.jwt.secret) as JwtPayload;
     req.user = decoded;
     next();
-  } catch (err: any) {
-    if (err.name === 'TokenExpiredError') {
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === 'TokenExpiredError') {
       return res.status(401).json({ success: false, error: 'Token expirado' });
     }
     return res.status(401).json({ success: false, error: 'Token invalido' });
