@@ -24,6 +24,7 @@ const channelLabels: Record<string, string> = {
 interface ZApiConfig {
   instanceId?: string;
   token?: string;
+  clientToken?: string;
 }
 
 export function ChannelsPage() {
@@ -38,6 +39,7 @@ export function ChannelsPage() {
     channelId: string;
     instanceId: string;
     zapiToken: string;
+    clientToken: string;
   } | null>(null);
   const [savingConfig, setSavingConfig] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
@@ -79,6 +81,7 @@ export function ChannelsPage() {
       channelId: channel.id,
       instanceId: cfg.instanceId ?? '',
       zapiToken: cfg.token ?? '',
+      clientToken: cfg.clientToken ?? '',
     });
   };
 
@@ -87,7 +90,7 @@ export function ChannelsPage() {
     setSavingConfig(true);
     try {
       await silviaService.updateChannel(configEdit.channelId, {
-        config: { instanceId: configEdit.instanceId, token: configEdit.zapiToken },
+        config: { instanceId: configEdit.instanceId, token: configEdit.zapiToken, clientToken: configEdit.clientToken },
       });
       setConfigEdit(null);
       load();
@@ -253,6 +256,12 @@ export function ChannelsPage() {
                             value={configEdit.zapiToken}
                             onChange={(e) => setConfigEdit({ ...configEdit, zapiToken: e.target.value })}
                             placeholder="Token Z-API"
+                            className="text-xs h-8"
+                          />
+                          <Input
+                            value={configEdit.clientToken}
+                            onChange={(e) => setConfigEdit({ ...configEdit, clientToken: e.target.value })}
+                            placeholder="Client-Token Z-API"
                             className="text-xs h-8"
                           />
                           <div className="flex gap-1.5">

@@ -19,6 +19,7 @@ interface ZApiPayload {
 interface ZApiChannelConfig {
   instanceId: string;
   token: string;
+  clientToken?: string;
 }
 
 // ── Z-API send message helper ────────────────────────────────────────────────
@@ -27,12 +28,15 @@ async function zapiSendText(
   instanceId: string,
   token: string,
   phone: string,
-  message: string
+  message: string,
+  clientToken?: string
 ): Promise<void> {
   const url = `https://api.z-api.io/instances/${instanceId}/token/${token}/send-text`;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (clientToken) headers["Client-Token"] = clientToken;
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ phone, message }),
     signal: AbortSignal.timeout(15_000),
   });
@@ -141,7 +145,7 @@ export class WebhookController {
         return;
       }
 
-      await zapiSendText(zapiConfig.instanceId, zapiConfig.token, chatPhone, answer);
+      await zapiSendText(zapiConfig.instanceId, zapiConfig.token, chatPhone, answer, zapiConfig.clientToken);
 
       if (config.nodeEnv === "development") {
         console.log(`[Webhook] Resposta enviada | canal=${channel.name} | persona=${persona.name} | chars=${answer.length}`);
