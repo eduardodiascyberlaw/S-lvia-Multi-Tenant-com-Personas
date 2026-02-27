@@ -180,11 +180,17 @@ export class RAGService {
           .join('\n\n---\n\n')
       : 'Nenhum documento relevante encontrado na base de conhecimento interna.';
 
+    // Build tool-aware instructions
+    const hasTools = persona.tools.length > 0;
+    const toolInstruction = hasTools
+      ? '- Quando a pergunta for sobre jurisprudencia, acordaos, tribunais ou legislacao, usa SEMPRE as ferramentas disponiveis para pesquisar informacao. Nao respondas com conhecimento geral nesses casos.'
+      : '- Se a informacao nao estiver no contexto, diz que nao tens essa informacao na base de conhecimento.';
+
     // Build messages for GPT
     const messages: OpenAI.ChatCompletionMessageParam[] = [
       {
         role: 'system',
-        content: `${persona.systemPrompt}\n\n---\n\nContexto da base de conhecimento:\n${contextText}\n\n---\n\nInstrucoes adicionais:\n- Responde sempre em portugues de Portugal.\n- Se a informacao nao estiver no contexto, diz que nao tens essa informacao na base de conhecimento.\n- Cita as fontes quando relevante.\n- Se nao houver documentos relevantes e a pergunta for generica, responde com base no teu conhecimento geral, mas avisa que a informacao nao vem da base de conhecimento.`,
+        content: `${persona.systemPrompt}\n\n---\n\nContexto da base de conhecimento:\n${contextText}\n\n---\n\nInstrucoes adicionais:\n- Responde sempre em portugues de Portugal.\n${toolInstruction}\n- Cita as fontes quando relevante.\n- Se nao houver documentos relevantes e a pergunta for generica, responde com base no teu conhecimento geral, mas avisa que a informacao nao vem da base de conhecimento.`,
       },
     ];
 
