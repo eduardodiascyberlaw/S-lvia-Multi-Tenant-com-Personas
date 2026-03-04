@@ -7,22 +7,37 @@ import { createCollectionSchema, ingestDocumentSchema } from '../utils/validator
 
 const router = Router();
 
+// Map file extensions to MIME types (browsers sometimes send application/octet-stream)
+const extToMime: Record<string, string> = {
+  '.pdf': 'application/pdf',
+  '.txt': 'text/plain',
+  '.md': 'text/markdown',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+};
+
+const allowedMimes = new Set(Object.values(extToMime));
+
 // Multer config for file uploads (memory storage, max 20MB)
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    const allowed = [
-      'application/pdf',
-      'text/plain',
-      'text/markdown',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    ];
-    if (allowed.includes(file.mimetype)) {
+    // If MIME is already recognized, accept
+    if (allowedMimes.has(file.mimetype)) {
       cb(null, true);
-    } else {
-      cb(new Error(`Tipo de ficheiro nao suportado: ${file.mimetype}. Aceites: PDF, TXT, MD, DOCX`));
+      return;
     }
+
+    // Fallback: check file extension (handles application/octet-stream from some browsers)
+    const ext = '.' + file.originalname.split('.').pop()?.toLowerCase();
+    const correctedMime = extToMime[ext];
+    if (correctedMime) {
+      file.mimetype = correctedMime; // fix the MIME type for downstream processing
+      cb(null, true);
+      return;
+    }
+
+    cb(new Error(`Tipo de ficheiro nao suportado: ${file.mimetype}. Aceites: PDF, TXT, MD, DOCX`));
   },
 });
 

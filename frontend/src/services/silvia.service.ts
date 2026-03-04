@@ -186,17 +186,24 @@ export const silviaService = {
     // Use native fetch instead of axios for file uploads (avoids binary serialization issues)
     const token = localStorage.getItem('silvia_token');
     const baseURL = api.defaults.baseURL || '';
-    const response = await fetch(
-      `${baseURL}/knowledge/collections/${collectionId}/documents/upload`,
-      {
+    const url = `${baseURL}/knowledge/collections/${collectionId}/documents/upload`;
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
         method: 'POST',
         headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: formData,
-      }
-    );
+      });
+    } catch (err) {
+      // Network error (CORS, connection refused, etc.)
+      throw new Error(
+        `Erro de rede ao enviar ficheiro. Verifique a conexao e tente novamente.`
+      );
+    }
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Erro no upload' }));
+      const errorData = await response.json().catch(() => ({ error: `Erro ${response.status}` }));
       throw new Error(errorData.error || `Erro ${response.status}`);
     }
 
