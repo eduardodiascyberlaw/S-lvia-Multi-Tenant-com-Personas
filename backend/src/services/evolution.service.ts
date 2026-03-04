@@ -148,9 +148,20 @@ export class EvolutionService {
   }
 
   /**
+   * Faz logout de uma instância (desconecta WhatsApp).
+   */
+  static async logoutInstance(instanceName: string): Promise<void> {
+    await this.request('DELETE', `/instance/logout/${instanceName}`);
+  }
+
+  /**
    * Remove uma instância do Evolution API.
    */
   static async deleteInstance(instanceName: string): Promise<void> {
+    // Logout primeiro para desconectar sessão
+    await this.logoutInstance(instanceName).catch(() => {});
+    // Pequeno delay para garantir cleanup
+    await new Promise((r) => setTimeout(r, 1000));
     await this.request('DELETE', `/instance/delete/${instanceName}`);
   }
 }

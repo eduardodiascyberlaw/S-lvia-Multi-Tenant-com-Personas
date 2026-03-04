@@ -99,8 +99,11 @@ export class ChannelController {
         // Instância já existe — apagar e recriar para obter QR code novo
         try {
           await EvolutionService.deleteInstance(instanceName);
-        } catch {
-          // Pode falhar se não existe, ignorar
+          console.log(`[WhatsApp] Instância ${instanceName} eliminada com sucesso`);
+          // Espera extra para Evolution API limpar a instância
+          await new Promise((r) => setTimeout(r, 1500));
+        } catch (delErr) {
+          console.warn(`[WhatsApp] Erro ao eliminar instância ${instanceName}:`, delErr);
         }
       }
 

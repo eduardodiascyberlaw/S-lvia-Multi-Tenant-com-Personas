@@ -185,7 +185,7 @@ export const silviaService = {
     const res = await api.post(
       `/knowledge/collections/${collectionId}/documents/upload`,
       formData,
-      { headers: { 'Content-Type': 'multipart/form-data' } }
+      { headers: { 'Content-Type': undefined } }
     );
     return res.data;
   },
