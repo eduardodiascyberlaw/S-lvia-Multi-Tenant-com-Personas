@@ -182,12 +182,25 @@ export const silviaService = {
     formData.append('file', file);
     if (title) formData.append('title', title);
     if (source) formData.append('source', source);
-    const res = await api.post(
-      `/knowledge/collections/${collectionId}/documents/upload`,
-      formData,
-      { timeout: 300_000 }
+
+    // Use native fetch instead of axios for file uploads (avoids binary serialization issues)
+    const token = localStorage.getItem('silvia_token');
+    const baseURL = api.defaults.baseURL || '';
+    const response = await fetch(
+      `${baseURL}/knowledge/collections/${collectionId}/documents/upload`,
+      {
+        method: 'POST',
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: formData,
+      }
     );
-    return res.data;
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Erro no upload' }));
+      throw new Error(errorData.error || `Erro ${response.status}`);
+    }
+
+    return response.json();
   },
 
   async deleteDocument(id: string): Promise<ApiResponse<void>> {
