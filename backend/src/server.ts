@@ -18,6 +18,9 @@ import webhookRoutes from './routes/webhook.routes';
 
 const app = express();
 
+// Trust first proxy (nginx) for correct IP detection
+app.set('trust proxy', 1);
+
 // ── Security ──
 app.use(helmet());
 const allowedOrigins = config.cors.origin.split(',').map((o) => o.trim());

@@ -4,18 +4,13 @@ const API_URL = import.meta.env.VITE_API_URL || '';
 
 const api = axios.create({
   baseURL: `${API_URL}/api`,
-  headers: { 'Content-Type': 'application/json' },
 });
 
-// ── Request interceptor: inject token + fix FormData headers ──
+// ── Request interceptor: inject token ──
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('silvia_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
-  }
-  // Let browser set Content-Type for FormData (includes multipart boundary)
-  if (config.data instanceof FormData) {
-    config.headers['Content-Type'] = undefined;
   }
   return config;
 });
