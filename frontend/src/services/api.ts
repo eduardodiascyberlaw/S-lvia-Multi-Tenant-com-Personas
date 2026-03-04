@@ -7,11 +7,15 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// ── Request interceptor: inject token ──
+// ── Request interceptor: inject token + fix FormData headers ──
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('silvia_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+  // Let browser set Content-Type for FormData (includes multipart boundary)
+  if (config.data instanceof FormData) {
+    config.headers['Content-Type'] = undefined;
   }
   return config;
 });
