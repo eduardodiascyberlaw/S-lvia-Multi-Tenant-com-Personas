@@ -137,11 +137,20 @@ export class EvolutionService {
     webhookUrl: string
   ): Promise<void> {
     await this.request('POST', `/webhook/set/${instanceName}`, {
-      url: webhookUrl,
-      events: ['MESSAGES_UPSERT'],
-      enabled: true,
-      webhookByEvents: false,
-      webhookBase64: false,
+      webhook: {
+        url: webhookUrl,
+        events: ['MESSAGES_UPSERT'],
+        enabled: true,
+        webhookByEvents: false,
+        webhookBase64: false,
+      },
     });
+  }
+
+  /**
+   * Remove uma instância do Evolution API.
+   */
+  static async deleteInstance(instanceName: string): Promise<void> {
+    await this.request('DELETE', `/instance/delete/${instanceName}`);
   }
 }

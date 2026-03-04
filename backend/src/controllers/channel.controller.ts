@@ -87,28 +87,26 @@ export class ChannelController {
       // Gera instanceName se não existir
       const instanceName = cfg.instanceName || `silvia-${channel.id.slice(0, 8)}`;
 
-      // Webhook URL para este canal
-      const backendUrl = config.cors.origin.replace(/:\d+$/, `:${config.port}`);
-      const webhookUrl = `${backendUrl}/api/webhooks/whatsapp/${channel.token}`;
+      // Webhook URL para este canal (usa API_BASE_URL público)
+      const backendUrl = config.apiBaseUrl
+        || config.cors.origin.replace(/:\d+$/, `:${config.port}`);
+      const webhookUrl = `${backendUrl}/api/webhooks/whatsapp/${channel.id}`;
 
       let qrCode: string | null = null;
       let instanceApiKey = cfg.apiKey ?? '';
 
-      try {
-        // Tenta criar instância nova
-        const result = await EvolutionService.createInstance(instanceName, webhookUrl);
-        qrCode = result.qrCode;
-        instanceApiKey = result.apiKey;
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : '';
-        // Se instância já existe (403), tenta reconectar
-        if (msg.includes('403') || msg.includes('already')) {
-          const result = await EvolutionService.connectInstance(instanceName);
-          qrCode = result.qrCode;
-        } else {
-          throw err;
+      if (cfg.instanceName) {
+        // Instância já existe — apagar e recriar para obter QR code novo
+        try {
+          await EvolutionService.deleteInstance(instanceName);
+        } catch {
+          // Pode falhar se não existe, ignorar
         }
       }
+
+      const result = await EvolutionService.createInstance(instanceName, webhookUrl);
+      qrCode = result.qrCode;
+      instanceApiKey = result.apiKey;
 
       // Guarda config actualizado no canal
       await prisma.channel.update({

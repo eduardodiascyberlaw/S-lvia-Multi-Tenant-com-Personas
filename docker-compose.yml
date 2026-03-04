@@ -60,7 +60,7 @@ services:
         condition: service_healthy
 
   evolution-api:
-    image: atendai/evolution-api:v2.2.3
+    image: evoapicloud/evolution-api:v2.3.7
     environment:
       SERVER_URL: ${EVOLUTION_SERVER_URL:-http://localhost:8081}
       AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:-silvia-evolution-key}

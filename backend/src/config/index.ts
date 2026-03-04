@@ -40,6 +40,8 @@ export const config = {
     },
   },
 
+  apiBaseUrl: process.env.API_BASE_URL || '',
+
   whatsapp: {
     evolution: {
       serverUrl: process.env.EVOLUTION_SERVER_URL || 'http://localhost:8080',
