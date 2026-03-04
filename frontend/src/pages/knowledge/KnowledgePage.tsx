@@ -28,8 +28,8 @@ export function KnowledgePage() {
   const [ingestMode, setIngestMode] = useState<IngestMode>('file');
   const [ingestForm, setIngestForm] = useState({ title: '', content: '', source: '' });
 
-  // File upload
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  // File upload — store pre-read blob to avoid browser revoking file handle
+  const [selectedFile, setSelectedFile] = useState<{ name: string; size: number; blob: Blob } | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -84,6 +84,17 @@ export function KnowledgePage() {
     }
   };
 
+  // ── Read file into memory immediately on selection ──
+  const captureFile = async (file: File) => {
+    try {
+      const buffer = await file.arrayBuffer();
+      const blob = new Blob([buffer], { type: file.type || 'application/octet-stream' });
+      setSelectedFile({ name: file.name, size: file.size, blob });
+    } catch {
+      alert('Nao foi possivel ler o ficheiro. Tente selecionar novamente.');
+    }
+  };
+
   // ── File upload ──
   const handleFileUpload = async () => {
     if (!selectedCollection || !selectedFile) return;
@@ -91,7 +102,8 @@ export function KnowledgePage() {
     try {
       await silviaService.uploadDocument(
         selectedCollection,
-        selectedFile,
+        selectedFile.blob,
+        selectedFile.name,
         ingestForm.title || undefined,
         ingestForm.source || undefined
       );
@@ -118,12 +130,12 @@ export function KnowledgePage() {
     e.preventDefault();
     setDragOver(false);
     const file = e.dataTransfer.files[0];
-    if (file) setSelectedFile(file);
+    if (file) captureFile(file);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) setSelectedFile(file);
+    if (file) captureFile(file);
   };
 
   const acceptedTypes = '.pdf,.txt,.md,.docx';

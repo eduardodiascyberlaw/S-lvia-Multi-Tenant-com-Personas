@@ -174,17 +174,13 @@ export const silviaService = {
 
   async uploadDocument(
     collectionId: string,
-    file: File,
+    blob: Blob,
+    fileName: string,
     title?: string,
     source?: string
   ): Promise<ApiResponse<{ documentId: string; chunks: number }>> {
-    // Read file into memory first to avoid browser aborting mid-upload
-    // (File objects can become unreadable after React re-renders)
-    const buffer = await file.arrayBuffer();
-    const blob = new Blob([buffer], { type: file.type || 'application/octet-stream' });
-
     const formData = new FormData();
-    formData.append('file', blob, file.name);
+    formData.append('file', blob, fileName);
     if (title) formData.append('title', title);
     if (source) formData.append('source', source);
 
