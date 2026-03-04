@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--host", "0.0.0.0", "--port", "5174"],
+      "port": 5174,
+      "cwd": "/Users/eduardodias/silvia-platform/S-lvia-Multi-Tenant-com-Personas/frontend"
+    }
+  ]
+}
