@@ -46,6 +46,8 @@ services:
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
       LEX_CORPUS_URL: ${LEX_CORPUS_URL}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5174}
+      EVOLUTION_SERVER_URL: ${EVOLUTION_SERVER_URL:-http://evolution-api:8080}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-silvia-evolution-key}
       SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:-admin@lexcod.pt}
       SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:-LexCod2026}
       SUPER_ADMIN_NAME: ${SUPER_ADMIN_NAME:-Admin}
@@ -60,7 +62,7 @@ services:
   evolution-api:
     image: atendai/evolution-api:v2.2.3
     environment:
-      SERVER_URL: ${EVOLUTION_SERVER_URL:-http://localhost:8080}
+      SERVER_URL: ${EVOLUTION_SERVER_URL:-http://localhost:8081}
       AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:-silvia-evolution-key}
       DATABASE_ENABLED: 'true'
       DATABASE_PROVIDER: postgresql
@@ -68,7 +70,7 @@ services:
       DATABASE_CONNECTION_CLIENT_NAME: evolution
       LOG_LEVEL: warn
     ports:
-      - '8080:8080'
+      - '8081:8080'
     depends_on:
       postgres:
         condition: service_healthy
