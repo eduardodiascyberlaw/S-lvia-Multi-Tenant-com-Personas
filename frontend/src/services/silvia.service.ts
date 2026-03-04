@@ -178,12 +178,16 @@ export const silviaService = {
     title?: string,
     source?: string
   ): Promise<ApiResponse<{ documentId: string; chunks: number }>> {
+    // Read file into memory first to avoid browser aborting mid-upload
+    // (File objects can become unreadable after React re-renders)
+    const buffer = await file.arrayBuffer();
+    const blob = new Blob([buffer], { type: file.type || 'application/octet-stream' });
+
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', blob, file.name);
     if (title) formData.append('title', title);
     if (source) formData.append('source', source);
 
-    // Use native fetch instead of axios for file uploads (avoids binary serialization issues)
     const token = localStorage.getItem('silvia_token');
     const baseURL = api.defaults.baseURL || '';
     const url = `${baseURL}/knowledge/collections/${collectionId}/documents/upload`;
