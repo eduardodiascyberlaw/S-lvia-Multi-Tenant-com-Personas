@@ -29,7 +29,7 @@ export function KnowledgePage() {
   const [ingestForm, setIngestForm] = useState({ title: '', content: '', source: '' });
 
   // File upload — store pre-read blob to avoid browser revoking file handle
-  const [selectedFile, setSelectedFile] = useState<{ name: string; size: number; blob: Blob } | null>(null);
+  const [selectedFile, setSelectedFile] = useState<{ name: string; size: number; blob: Blob; type: string } | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -84,15 +84,21 @@ export function KnowledgePage() {
     }
   };
 
-  // ── Read file into memory immediately on selection ──
-  const captureFile = async (file: File) => {
-    try {
-      const buffer = await file.arrayBuffer();
-      const blob = new Blob([buffer], { type: file.type || 'application/octet-stream' });
-      setSelectedFile({ name: file.name, size: file.size, blob });
-    } catch {
-      alert('Nao foi possivel ler o ficheiro. Tente selecionar novamente.');
-    }
+  // ── Read file into memory immediately on selection (using FileReader for compatibility) ──
+  const captureFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const blob = new Blob([reader.result as ArrayBuffer], {
+        type: file.type || 'application/octet-stream',
+      });
+      setSelectedFile({ name: file.name, size: file.size, blob, type: file.type });
+    };
+    reader.onerror = () => {
+      // FileReader also failed — store the File directly as last resort
+      console.warn('FileReader failed, storing File object directly');
+      setSelectedFile({ name: file.name, size: file.size, blob: file, type: file.type });
+    };
+    reader.readAsArrayBuffer(file);
   };
 
   // ── File upload ──
