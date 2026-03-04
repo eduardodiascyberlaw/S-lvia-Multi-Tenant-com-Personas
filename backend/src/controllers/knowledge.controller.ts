@@ -62,6 +62,7 @@ export class KnowledgeController {
   static async uploadDocument(req: Request, res: Response, next: NextFunction) {
     try {
       const file = req.file;
+      console.log(`[Upload] Recebido ficheiro: ${file?.originalname} (${file?.mimetype}, ${file?.size} bytes)`);
       if (!file) {
         throw new AppError('Nenhum ficheiro enviado', 400);
       }
@@ -69,6 +70,7 @@ export class KnowledgeController {
       let content: string;
       const mime = file.mimetype;
 
+      console.log(`[Upload] A extrair texto (${mime})...`);
       if (mime === 'application/pdf') {
         const parser = new PDFParse({ data: file.buffer });
         const result = await parser.getText();
@@ -81,6 +83,8 @@ export class KnowledgeController {
         throw new AppError(`Tipo de ficheiro nao suportado: ${mime}`, 400);
       }
 
+      console.log(`[Upload] Texto extraido: ${content.length} caracteres`);
+
       if (!content || content.trim().length < 10) {
         throw new AppError('Nao foi possivel extrair texto do ficheiro. O ficheiro pode estar vazio ou protegido.', 400);
       }
@@ -89,14 +93,17 @@ export class KnowledgeController {
       const title = req.body.title || file.originalname.replace(/\.[^/.]+$/, '');
       const source = req.body.source || file.originalname;
 
+      console.log(`[Upload] A ingerir documento "${title}" na colecao ${req.params.id}...`);
       const result = await KnowledgeService.ingestDocument(
         req.params.id,
         req.user!.orgId,
         { title, content, source }
       );
 
+      console.log(`[Upload] Concluido: ${result.chunks} chunks criados`);
       res.status(201).json({ success: true, data: result });
     } catch (err) {
+      console.error(`[Upload] Erro:`, err);
       next(err);
     }
   }

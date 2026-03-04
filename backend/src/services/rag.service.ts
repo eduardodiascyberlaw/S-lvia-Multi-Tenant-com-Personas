@@ -88,11 +88,10 @@ export class RAGService {
 
     // Chunk and embed
     const chunks = this.chunkText(content);
-    if (config.nodeEnv === "development") {
-      console.log(`[RAG] Documento "${title}": ${chunks.length} chunks`);
-    }
+    console.log(`[RAG] Documento "${title}": ${chunks.length} chunks para processar`);
 
     for (let i = 0; i < chunks.length; i++) {
+      console.log(`[RAG] Chunk ${i + 1}/${chunks.length}: a gerar embedding...`);
       const embedding = await this.getEmbedding(chunks[i]);
       const embeddingStr = `[${embedding.join(',')}]`;
 
@@ -104,6 +103,7 @@ export class RAGService {
         embeddingStr,
         i
       );
+      console.log(`[RAG] Chunk ${i + 1}/${chunks.length}: guardado`);
     }
 
     return { documentId: doc.id, chunks: chunks.length };
