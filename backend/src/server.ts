@@ -115,12 +115,20 @@ async function start() {
     // Seed super admin
     await AuthService.seedSuperAdmin();
 
-    app.listen(config.port, () => {
+    const server = app.listen(config.port, () => {
       console.log(`[Server] A escutar na porta ${config.port}`);
       console.log(`[Server] OpenAI:     ${config.openai.apiKey ? 'OK' : 'NAO CONFIGURADO'}`);
       console.log(`[Server] Stripe:     ${config.stripe.secretKey ? 'OK' : 'NAO CONFIGURADO'}`);
       console.log(`[Server] Lex Corpus: ${config.lexCorpus.url ? config.lexCorpus.url : 'NAO CONFIGURADO'}`);
       console.log(`[Server] Voice:      ${config.voice.enabled ? 'ATIVO' : 'INATIVO'}`);
+    });
+
+    // Catch HTTP-level errors (rejected before Express middleware)
+    server.on('clientError', (err, socket) => {
+      console.error(`[ClientError] ${(err as NodeJS.ErrnoException).code}: ${err.message}`);
+      if (socket.writable) {
+        socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
+      }
     });
   } catch (err) {
     console.error('[Server] Erro ao iniciar:', err);
