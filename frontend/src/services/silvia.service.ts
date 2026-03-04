@@ -185,7 +185,7 @@ export const silviaService = {
     const res = await api.post(
       `/knowledge/collections/${collectionId}/documents/upload`,
       formData,
-      { headers: { 'Content-Type': undefined } }
+      { headers: { 'Content-Type': undefined }, timeout: 300_000 }
     );
     return res.data;
   },
