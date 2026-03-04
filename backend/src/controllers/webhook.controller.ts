@@ -3,70 +3,96 @@ import { prisma } from "../utils/prisma";
 import { ConversationService } from "../services/conversation.service";
 import { config } from "../config";
 
-// ── Tipos Z-API ───────────────────────────────────────────────────────────────
+// ── Tipos Evolution API ──────────────────────────────────────────────────────
 
-interface ZApiPayload {
-  type: string;
-  fromMe: boolean;
-  text?: { message: string };
-  phone: string;
-  participantPhone?: string;
-  senderName?: string;
-  chatName?: string;
-  isGroup?: boolean;
+interface EvolutionPayload {
+  event: string;
+  instance: string;
+  data: {
+    key: {
+      id: string;
+      fromMe: boolean;
+      remoteJid: string;
+      participant?: string; // presente em grupos
+    };
+    pushName?: string;
+    message?: {
+      conversation?: string;
+      extendedTextMessage?: { text: string };
+    };
+    messageType?: string;
+  };
 }
 
-interface ZApiChannelConfig {
-  instanceId: string;
-  token: string;
-  clientToken?: string;
+interface EvolutionChannelConfig {
+  serverUrl: string;   // URL do servidor Evolution API (ex: http://localhost:8080)
+  apiKey: string;      // API key da instância
+  instanceName: string; // Nome da instância no Evolution API
 }
 
-// ── Z-API send message helper ────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
-async function zapiSendText(
-  instanceId: string,
-  token: string,
+/** Extrai número de telefone limpo a partir do JID do WhatsApp */
+function phoneFromJid(jid: string): string {
+  return jid.replace(/@.*$/, "");
+}
+
+/** Verifica se é um grupo pelo JID */
+function isGroupJid(jid: string): boolean {
+  return jid.endsWith("@g.us");
+}
+
+/** Extrai texto da mensagem (suporta texto simples e extendido) */
+function extractText(message?: EvolutionPayload["data"]["message"]): string {
+  if (!message) return "";
+  return (message.conversation || message.extendedTextMessage?.text || "").trim();
+}
+
+// ── Evolution API send message helper ────────────────────────────────────────
+
+async function evolutionSendText(
+  serverUrl: string,
+  apiKey: string,
+  instanceName: string,
   phone: string,
-  message: string,
-  clientToken?: string
+  message: string
 ): Promise<void> {
-  const url = `https://api.z-api.io/instances/${instanceId}/token/${token}/send-text`;
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (clientToken) headers["Client-Token"] = clientToken;
+  const url = `${serverUrl}/message/sendText/${instanceName}`;
   const res = await fetch(url, {
     method: "POST",
-    headers,
-    body: JSON.stringify({ phone, message }),
+    headers: {
+      "Content-Type": "application/json",
+      apikey: apiKey,
+    },
+    body: JSON.stringify({ number: phone, text: message }),
     signal: AbortSignal.timeout(15_000),
   });
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    console.error(`[Webhook] Z-API send error ${res.status}: ${body}`);
+    console.error(`[Webhook] Evolution API send error ${res.status}: ${body}`);
   }
 }
 
-// ── WhatsApp (Z-API) ─────────────────────────────────────────────────────────
+// ── WhatsApp (Evolution API) ─────────────────────────────────────────────────
 
 export class WebhookController {
   static async whatsapp(req: Request, res: Response, _next: NextFunction) {
-    // Acknowledge immediately — Z-API espera 200 em < 5s
+    // Acknowledge immediately
     res.status(200).json({ status: "received" });
 
     try {
-      const payload = req.body as ZApiPayload;
+      const payload = req.body as EvolutionPayload;
 
-      // Só processa mensagens recebidas com texto
+      // Só processa mensagens recebidas (messages.upsert) que não sejam nossas
       if (
-        payload.type !== "ReceivedCallback" ||
-        payload.fromMe === true ||
-        !payload.text?.message
+        payload.event !== "messages.upsert" ||
+        payload.data?.key?.fromMe === true
       ) {
         return;
       }
 
-      const userMessage = payload.text.message.trim();
+      const userMessage = extractText(payload.data?.message);
       if (!userMessage) return;
 
       // Identifica o canal pelo token na URL (/api/webhooks/whatsapp/:channelToken)
@@ -99,22 +125,21 @@ export class WebhookController {
       }
 
       const persona = channelPersona.persona;
-      const isGroup = payload.isGroup === true;
-
-      // chatPhone = destinatário da resposta (grupo ou individual)
-      const chatPhone = payload.phone;
-      const senderName = payload.senderName ?? null;
+      const remoteJid = payload.data.key.remoteJid;
+      const isGroup = isGroupJid(remoteJid);
+      const chatPhone = phoneFromJid(remoteJid);
+      const senderName = payload.data.pushName ?? null;
 
       // Cria ou encontra o contacto externo (grupo ou indivíduo)
       const contact = await prisma.externalContact.upsert({
         where: { orgId_phone: { orgId: channel.orgId, phone: chatPhone } },
-        update: { name: isGroup ? (payload.chatName ?? null) : senderName },
+        update: { name: senderName },
         create: {
           orgId: channel.orgId,
           phone: chatPhone,
-          name: isGroup ? (payload.chatName ?? null) : senderName,
+          name: senderName,
           metadata: isGroup
-            ? { isGroup: true, lastSenderName: payload.senderName ?? "" }
+            ? { isGroup: true, lastSenderName: senderName ?? "" }
             : undefined,
         },
       });
@@ -137,15 +162,15 @@ export class WebhookController {
       const answer = result.message.content;
       if (!answer) return;
 
-      // Envia resposta via Z-API
-      const zapiConfig = channel.config as ZApiChannelConfig | null;
+      // Envia resposta via Evolution API
+      const evoConfig = channel.config as EvolutionChannelConfig | null;
 
-      if (!zapiConfig?.instanceId || !zapiConfig?.token) {
-        console.error(`[Webhook] Canal ${channel.name} sem instanceId/token Z-API no config`);
+      if (!evoConfig?.serverUrl || !evoConfig?.apiKey || !evoConfig?.instanceName) {
+        console.error(`[Webhook] Canal ${channel.name} sem configuração Evolution API`);
         return;
       }
 
-      await zapiSendText(zapiConfig.instanceId, zapiConfig.token, chatPhone, answer, zapiConfig.clientToken);
+      await evolutionSendText(evoConfig.serverUrl, evoConfig.apiKey, evoConfig.instanceName, chatPhone, answer);
 
       if (config.nodeEnv === "development") {
         console.log(`[Webhook] Resposta enviada | canal=${channel.name} | persona=${persona.name} | chars=${answer.length}`);

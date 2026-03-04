@@ -172,6 +172,24 @@ export const silviaService = {
     return res.data;
   },
 
+  async uploadDocument(
+    collectionId: string,
+    file: File,
+    title?: string,
+    source?: string
+  ): Promise<ApiResponse<{ documentId: string; chunks: number }>> {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (title) formData.append('title', title);
+    if (source) formData.append('source', source);
+    const res = await api.post(
+      `/knowledge/collections/${collectionId}/documents/upload`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    return res.data;
+  },
+
   async deleteDocument(id: string): Promise<ApiResponse<void>> {
     const res = await api.delete(`/knowledge/documents/${id}`);
     return res.data;
@@ -205,6 +223,16 @@ export const silviaService = {
     isDefault = false
   ): Promise<ApiResponse<{ id: string }>> {
     const res = await api.post(`/channels/${channelId}/personas`, { personaId, isDefault });
+    return res.data;
+  },
+
+  async connectWhatsApp(channelId: string): Promise<ApiResponse<{ qrCode: string; instanceName: string; status: string }>> {
+    const res = await api.post(`/channels/${channelId}/connect`);
+    return res.data;
+  },
+
+  async getWhatsAppStatus(channelId: string): Promise<ApiResponse<{ status: string }>> {
+    const res = await api.get(`/channels/${channelId}/status`);
     return res.data;
   },
 

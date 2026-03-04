@@ -10,7 +10,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - '5432:5432'
+      - '5433:5432'
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U crm_user -d silvia']
       interval: 10s
@@ -51,6 +51,24 @@ services:
       SUPER_ADMIN_NAME: ${SUPER_ADMIN_NAME:-Admin}
     ports:
       - '3002:3002'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  evolution-api:
+    image: atendai/evolution-api:v2.2.3
+    environment:
+      SERVER_URL: ${EVOLUTION_SERVER_URL:-http://localhost:8080}
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:-silvia-evolution-key}
+      DATABASE_ENABLED: 'true'
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://crm_user:${DB_PASSWORD:-silvia_dev_password}@postgres:5432/evolution
+      DATABASE_CONNECTION_CLIENT_NAME: evolution
+      LOG_LEVEL: warn
+    ports:
+      - '8080:8080'
     depends_on:
       postgres:
         condition: service_healthy

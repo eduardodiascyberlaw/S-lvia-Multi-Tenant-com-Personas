@@ -1,13 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { silviaService } from '@/services/silvia.service';
 import { Channel, Persona } from '@/types';
-import { Plus, Radio, MessageCircle, Mail, Phone, Trash2, Users, Settings, Copy, Check, Save, Loader2 } from 'lucide-react';
-
-const API_URL = import.meta.env.VITE_API_URL || '';
+import {
+  Plus, Radio, MessageCircle, Mail, Phone, Trash2, Users,
+  Loader2, QrCode, Wifi, WifiOff, RefreshCw, X,
+} from 'lucide-react';
 
 const channelIcons: Record<string, typeof Radio> = {
   WHATSAPP: Phone,
@@ -21,10 +22,10 @@ const channelLabels: Record<string, string> = {
   EMAIL: 'Email',
 };
 
-interface ZApiConfig {
-  instanceId?: string;
-  token?: string;
-  clientToken?: string;
+interface EvolutionConfig {
+  serverUrl?: string;
+  apiKey?: string;
+  instanceName?: string;
 }
 
 export function ChannelsPage() {
@@ -34,27 +35,41 @@ export function ChannelsPage() {
   const [showNew, setShowNew] = useState(false);
   const [newForm, setNewForm] = useState({ name: '', type: 'WEBCHAT' as string });
 
-  // Z-API config editor state
-  const [configEdit, setConfigEdit] = useState<{
-    channelId: string;
-    instanceId: string;
-    zapiToken: string;
-    clientToken: string;
-  } | null>(null);
-  const [savingConfig, setSavingConfig] = useState(false);
-  const [copied, setCopied] = useState<string | null>(null);
+  // QR Code state
+  const [qrData, setQrData] = useState<{ channelId: string; qrCode: string } | null>(null);
+  const [connecting, setConnecting] = useState<string | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<Record<string, string>>({});
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const load = () => {
+  const load = useCallback(() => {
     Promise.all([
       silviaService.listChannels(),
       silviaService.listPersonas(),
     ]).then(([chRes, pRes]) => {
-      if (chRes.data) setChannels(chRes.data);
+      if (chRes.data) {
+        setChannels(chRes.data);
+        // Fetch status for all WhatsApp channels with config
+        chRes.data.forEach((ch) => {
+          const cfg = (ch.config ?? {}) as EvolutionConfig;
+          if (ch.type === 'WHATSAPP' && cfg.instanceName) {
+            silviaService.getWhatsAppStatus(ch.id).then((res) => {
+              if (res.data) {
+                setConnectionStatus((prev) => ({ ...prev, [ch.id]: res.data!.status }));
+              }
+            }).catch(() => { /* ignore */ });
+          }
+        });
+      }
       if (pRes.data) setPersonas(pRes.data);
     }).finally(() => setLoading(false));
-  };
+  }, []);
 
-  useEffect(load, []);
+  useEffect(() => {
+    load();
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, [load]);
 
   const handleCreate = async () => {
     if (!newForm.name.trim()) return;
@@ -75,40 +90,61 @@ export function ChannelsPage() {
     load();
   };
 
-  const openConfigEdit = (channel: Channel) => {
-    const cfg = (channel.config ?? {}) as ZApiConfig;
-    setConfigEdit({
-      channelId: channel.id,
-      instanceId: cfg.instanceId ?? '',
-      zapiToken: cfg.token ?? '',
-      clientToken: cfg.clientToken ?? '',
-    });
-  };
+  // ── QR Code connect flow ───────────────────────────────────────────────
 
-  const handleSaveConfig = async () => {
-    if (!configEdit) return;
-    setSavingConfig(true);
+  const handleConnect = async (channelId: string) => {
+    setConnecting(channelId);
     try {
-      await silviaService.updateChannel(configEdit.channelId, {
-        config: { instanceId: configEdit.instanceId, token: configEdit.zapiToken, clientToken: configEdit.clientToken },
-      });
-      setConfigEdit(null);
-      load();
+      const res = await silviaService.connectWhatsApp(channelId);
+      if (res.data?.qrCode) {
+        setQrData({ channelId, qrCode: res.data.qrCode });
+        startPolling(channelId);
+      }
     } catch (err) {
-      console.error(err);
+      console.error('Erro ao conectar WhatsApp:', err);
     } finally {
-      setSavingConfig(false);
+      setConnecting(null);
     }
   };
 
-  const copyToClipboard = (text: string, key: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(key);
-    setTimeout(() => setCopied(null), 2000);
+  const startPolling = (channelId: string) => {
+    if (pollingRef.current) clearInterval(pollingRef.current);
+
+    let attempts = 0;
+    pollingRef.current = setInterval(async () => {
+      attempts++;
+      if (attempts > 20) { // ~60s timeout
+        stopPolling();
+        setQrData(null);
+        return;
+      }
+      try {
+        const res = await silviaService.getWhatsAppStatus(channelId);
+        const status = res.data?.status ?? 'close';
+        setConnectionStatus((prev) => ({ ...prev, [channelId]: status }));
+
+        if (status === 'open') {
+          stopPolling();
+          setQrData(null);
+          load();
+        }
+      } catch {
+        /* ignore polling errors */
+      }
+    }, 3000);
   };
 
-  const webhookUrl = (channelToken: string) =>
-    `${API_URL}/api/webhooks/whatsapp/${channelToken}`;
+  const stopPolling = () => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+  };
+
+  const closeQrModal = () => {
+    stopPolling();
+    setQrData(null);
+  };
 
   if (loading) return <div className="text-center py-12 text-muted-foreground">A carregar...</div>;
 
@@ -151,6 +187,41 @@ export function ChannelsPage() {
         </Card>
       )}
 
+      {/* QR Code Modal */}
+      {qrData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <Card className="w-[400px] max-w-[90vw]">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <QrCode className="h-5 w-5" /> Conectar WhatsApp
+                </CardTitle>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={closeQrModal}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center gap-4 pb-6">
+              <img
+                src={qrData.qrCode}
+                alt="QR Code WhatsApp"
+                className="w-64 h-64 rounded-lg border"
+              />
+              <div className="text-center space-y-1">
+                <p className="text-sm font-medium">Escaneie o QR code no WhatsApp</p>
+                <p className="text-xs text-muted-foreground">
+                  WhatsApp &gt; Dispositivos conectados &gt; Conectar dispositivo
+                </p>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                A aguardar conexao...
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {channels.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
@@ -163,9 +234,10 @@ export function ChannelsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {channels.map((channel) => {
             const Icon = channelIcons[channel.type] || Radio;
-            const isEditingConfig = configEdit?.channelId === channel.id;
-            const cfg = (channel.config ?? {}) as ZApiConfig;
-            const hasZapiConfig = channel.type === 'WHATSAPP' && !!cfg.instanceId;
+            const cfg = (channel.config ?? {}) as EvolutionConfig;
+            const status = connectionStatus[channel.id];
+            const isConnected = status === 'open';
+            const isConnecting = connecting === channel.id;
 
             return (
               <Card key={channel.id} className="flex flex-col">
@@ -226,85 +298,57 @@ export function ChannelsPage() {
                     )}
                   </div>
 
-                  {/* WhatsApp Z-API config */}
+                  {/* WhatsApp connection */}
                   {channel.type === 'WHATSAPP' && (
-                    <div className="space-y-2 border-t pt-3">
+                    <div className="space-y-3 border-t pt-3">
+                      {/* Connection status */}
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-medium flex items-center gap-1">
-                          <Settings className="h-3 w-3" /> Z-API
+                          {isConnected ? (
+                            <Wifi className="h-3 w-3 text-green-600" />
+                          ) : (
+                            <WifiOff className="h-3 w-3 text-muted-foreground" />
+                          )}
+                          WhatsApp
                         </span>
-                        {hasZapiConfig ? (
+                        {isConnected ? (
                           <Badge variant="secondary" className="text-[10px] bg-green-50 text-green-700 border-green-200">
-                            Configurado
+                            Conectado
+                          </Badge>
+                        ) : cfg.instanceName ? (
+                          <Badge variant="secondary" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200">
+                            Desconectado
                           </Badge>
                         ) : (
-                          <Badge variant="secondary" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200">
-                            Por configurar
+                          <Badge variant="secondary" className="text-[10px]">
+                            Por conectar
                           </Badge>
                         )}
                       </div>
 
-                      {isEditingConfig ? (
-                        <div className="space-y-2">
-                          <Input
-                            value={configEdit.instanceId}
-                            onChange={(e) => setConfigEdit({ ...configEdit, instanceId: e.target.value })}
-                            placeholder="Instance ID"
-                            className="text-xs h-8"
-                          />
-                          <Input
-                            value={configEdit.zapiToken}
-                            onChange={(e) => setConfigEdit({ ...configEdit, zapiToken: e.target.value })}
-                            placeholder="Token Z-API"
-                            className="text-xs h-8"
-                          />
-                          <Input
-                            value={configEdit.clientToken}
-                            onChange={(e) => setConfigEdit({ ...configEdit, clientToken: e.target.value })}
-                            placeholder="Client-Token Z-API"
-                            className="text-xs h-8"
-                          />
-                          <div className="flex gap-1.5">
-                            <Button size="sm" className="h-7 text-xs flex-1" onClick={handleSaveConfig} disabled={savingConfig}>
-                              {savingConfig ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-                              Guardar
-                            </Button>
-                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setConfigEdit(null)}>
-                              Cancelar
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="w-full h-7 text-xs"
-                          onClick={() => openConfigEdit(channel)}
-                        >
-                          <Settings className="h-3 w-3" />
-                          {hasZapiConfig ? 'Editar configuração Z-API' : 'Configurar Z-API'}
-                        </Button>
-                      )}
+                      {/* Connect / Reconnect button */}
+                      <Button
+                        size="sm"
+                        variant={isConnected ? 'outline' : 'default'}
+                        className="w-full h-8 text-xs"
+                        onClick={() => handleConnect(channel.id)}
+                        disabled={isConnecting}
+                      >
+                        {isConnecting ? (
+                          <><Loader2 className="h-3.5 w-3.5 animate-spin" /> A conectar...</>
+                        ) : isConnected ? (
+                          <><RefreshCw className="h-3.5 w-3.5" /> Reconectar</>
+                        ) : (
+                          <><QrCode className="h-3.5 w-3.5" /> Conectar WhatsApp</>
+                        )}
+                      </Button>
 
-                      {/* Webhook URL */}
-                      <div>
-                        <p className="text-[10px] text-muted-foreground mb-1">URL do Webhook (configurar no Z-API):</p>
-                        <div className="flex items-center gap-1 bg-muted rounded px-2 py-1">
-                          <code className="text-[10px] flex-1 truncate text-muted-foreground">
-                            {webhookUrl(channel.token)}
-                          </code>
-                          <button
-                            onClick={() => copyToClipboard(webhookUrl(channel.token), channel.id)}
-                            className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
-                          >
-                            {copied === channel.id ? (
-                              <Check className="h-3.5 w-3.5 text-green-600" />
-                            ) : (
-                              <Copy className="h-3.5 w-3.5" />
-                            )}
-                          </button>
-                        </div>
-                      </div>
+                      {/* Instance info */}
+                      {cfg.instanceName && (
+                        <p className="text-[10px] text-muted-foreground">
+                          Instancia: {cfg.instanceName}
+                        </p>
+                      )}
                     </div>
                   )}
 

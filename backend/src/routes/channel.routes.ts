@@ -15,4 +15,8 @@ router.delete('/:id', authorize('OWNER', 'ADMIN'), ChannelController.delete);
 router.post('/:id/personas', authorize('OWNER', 'ADMIN'), validate(assignPersonaSchema), ChannelController.assignPersona);
 router.delete('/:id/personas/:personaId', authorize('OWNER', 'ADMIN'), ChannelController.removePersona);
 
+// WhatsApp Evolution API — connect + status
+router.post('/:id/connect', authorize('OWNER', 'ADMIN'), ChannelController.connectWhatsApp);
+router.get('/:id/status', ChannelController.getWhatsAppStatus);
+
 export default router;

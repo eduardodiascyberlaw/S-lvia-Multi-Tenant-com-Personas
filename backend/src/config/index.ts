@@ -41,10 +41,9 @@ export const config = {
   },
 
   whatsapp: {
-    zapi: {
-      instanceId: process.env.ZAPI_INSTANCE_ID || '',
-      token: process.env.ZAPI_TOKEN || '',
-      webhookSecret: process.env.ZAPI_WEBHOOK_SECRET || '',
+    evolution: {
+      serverUrl: process.env.EVOLUTION_SERVER_URL || 'http://localhost:8080',
+      apiKey: process.env.EVOLUTION_API_KEY || '',
     },
   },
 
