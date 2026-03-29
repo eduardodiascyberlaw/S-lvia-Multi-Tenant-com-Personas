@@ -21,14 +21,6 @@ const app = express();
 // Trust first proxy (nginx) for correct IP detection
 app.set('trust proxy', 1);
 
-// ── Debug: log upload requests (BEFORE any middleware) ──
-app.use((req, _res, next) => {
-  if (req.url.includes('upload')) {
-    console.log(`[UPLOAD-DEBUG] ${req.method} ${req.url} ct=${req.headers['content-type']?.substring(0, 80)} cl=${req.headers['content-length']} origin=${req.headers['origin']}`);
-  }
-  next();
-});
-
 // ── Security ──
 app.use(helmet());
 const allowedOrigins = config.cors.origin.split(',').map((o) => o.trim());

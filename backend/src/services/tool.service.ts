@@ -18,16 +18,26 @@ export interface ToolConfig {
   paymentLinks?: Record<string, string>;
 }
 
+interface LexCorpusChunk {
+  chunkId: number;
+  chunkType: string;
+  content: string;
+  relevance: number;
+}
+
 interface LexCorpusResult {
+  documentId?: number;
+  contentType?: string;
   tribunal?: string;
   processo?: string;
+  dataAcordao?: string;
   data_acordao?: string;
   relator?: string;
+  descritores?: string;
   sumario?: string;
   url?: string;
-  similarity?: number | string;
-  title?: string;
-  content?: string;
+  relevance?: number;
+  matchingChunks?: LexCorpusChunk[];
 }
 
 interface LexCorpusResponse {
@@ -247,22 +257,27 @@ export class ToolService {
   private static async tribunaisSearch(
     query: string,
     tribunal?: string,
-    dateFrom?: string,
-    dateTo?: string
+    _dateFrom?: string,
+    _dateTo?: string
   ): Promise<string> {
     const baseUrl = config.lexCorpus.url;
     if (!baseUrl) return "Lex Corpus não configurado.";
 
-    const body: Record<string, unknown> = { query, contentType: "jurisprudencia", topK: 5 };
-    if (tribunal) body.tribunal = tribunal;
-    if (dateFrom) body.dateFrom = dateFrom;
-    if (dateTo) body.dateTo = dateTo;
+    const body: Record<string, unknown> = {
+      queries: [query],
+      contentType: "jurisprudencia",
+      topK: 5,
+    };
+    if (tribunal) body.tribunals = [tribunal];
 
-    const res = await fetch(`${baseUrl}/api/search`, {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (config.lexCorpus.apiKey) headers["X-API-Key"] = config.lexCorpus.apiKey;
+
+    const res = await fetch(`${baseUrl}/api/search/directed`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(10_000),
+      signal: AbortSignal.timeout(15_000),
     });
 
     if (!res.ok) return `Erro ao pesquisar jurisprudência: ${res.status}`;
@@ -276,11 +291,12 @@ export class ToolService {
       results.map((r) => ({
         tribunal: r.tribunal,
         processo: r.processo,
-        data: r.data_acordao,
+        data: r.dataAcordao || r.data_acordao,
         relator: r.relator,
         sumario: r.sumario ? r.sumario.slice(0, 400) : null,
+        texto: r.matchingChunks?.[0]?.content?.slice(0, 500) || null,
         url: r.url,
-        similarity: r.similarity ? parseFloat(String(r.similarity)).toFixed(2) : null,
+        relevance: r.relevance,
       }))
     );
   }
@@ -291,11 +307,14 @@ export class ToolService {
     const baseUrl = config.lexCorpus.url;
     if (!baseUrl) return "Lex Corpus não configurado.";
 
-    const res = await fetch(`${baseUrl}/api/search`, {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (config.lexCorpus.apiKey) headers["X-API-Key"] = config.lexCorpus.apiKey;
+
+    const res = await fetch(`${baseUrl}/api/search/directed`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query, contentType: "legislacao", topK: 5 }),
-      signal: AbortSignal.timeout(10_000),
+      headers,
+      body: JSON.stringify({ queries: [query], contentType: "legislacao", topK: 5 }),
+      signal: AbortSignal.timeout(15_000),
     });
 
     if (!res.ok) return `Erro ao pesquisar legislação: ${res.status}`;
@@ -307,9 +326,13 @@ export class ToolService {
 
     return JSON.stringify(
       results.map((r) => ({
-        titulo: r.title,
-        conteudo: r.content ? r.content.slice(0, 600) : null,
-        similarity: r.similarity ? parseFloat(String(r.similarity)).toFixed(2) : null,
+        diploma: r.processo || r.descritores,
+        sumario: r.sumario ? r.sumario.slice(0, 300) : null,
+        artigos: r.matchingChunks
+          ?.map((c) => c.content.slice(0, 400))
+          .slice(0, 3) || [],
+        url: r.url,
+        relevance: r.relevance,
       }))
     );
   }

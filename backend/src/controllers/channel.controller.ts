@@ -87,10 +87,10 @@ export class ChannelController {
       // Gera instanceName se não existir
       const instanceName = cfg.instanceName || `silvia-${channel.id.slice(0, 8)}`;
 
-      // Webhook URL para este canal (usa API_BASE_URL público)
+      // Webhook URL para este canal (usa API_BASE_URL público + channel.token)
       const backendUrl = config.apiBaseUrl
         || config.cors.origin.replace(/:\d+$/, `:${config.port}`);
-      const webhookUrl = `${backendUrl}/api/webhooks/whatsapp/${channel.id}`;
+      const webhookUrl = `${backendUrl}/api/webhooks/whatsapp/${channel.token}`;
 
       let qrCode: string | null = null;
       let instanceApiKey = cfg.apiKey ?? '';
@@ -112,12 +112,13 @@ export class ChannelController {
       instanceApiKey = result.apiKey;
 
       // Guarda config actualizado no canal
+      // Usa a apiKey global do Evolution (não a da instância)
       await prisma.channel.update({
         where: { id: channel.id },
         data: {
           config: {
             serverUrl: config.whatsapp.evolution.serverUrl,
-            apiKey: instanceApiKey,
+            apiKey: config.whatsapp.evolution.apiKey,
             instanceName,
           },
         },

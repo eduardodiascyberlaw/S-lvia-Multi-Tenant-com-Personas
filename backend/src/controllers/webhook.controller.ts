@@ -84,7 +84,10 @@ export class WebhookController {
     try {
       const payload = req.body as EvolutionPayload;
 
+      console.log(`[Webhook] Evento recebido: ${payload.event} | instance: ${payload.instance}`);
+
       // Só processa mensagens recebidas (messages.upsert) que não sejam nossas
+      // Evolution API envia como "messages.upsert" (lowercase com ponto)
       if (
         payload.event !== "messages.upsert" ||
         payload.data?.key?.fromMe === true

@@ -71,6 +71,7 @@ export const config = {
 
   lexCorpus: {
     url: process.env.LEX_CORPUS_URL || '',
+    apiKey: process.env.LEX_CORPUS_API_KEY || '',
   },
 
   superAdmin: {
